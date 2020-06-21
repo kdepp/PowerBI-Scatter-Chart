@@ -730,6 +730,8 @@ module powerbi.extensibility.visual {
             let fontSizeInPx: string = PixelConverter.toString(labelSettings.fontSize);
             let labelFontFamily: string = labelSettings.fontFamily;
 
+            const colorsCount: Record<string, number> = {};
+
             for (let categoryIdx: number = 0, ilen: number = categoriesValues.length; categoryIdx < ilen; categoryIdx++) {
                 const categoryValue: any = categoriesValues[categoryIdx];
 
@@ -814,6 +816,9 @@ module powerbi.extensibility.visual {
                             category.objects && category.objects[categoryIdx],
                             measureSource);
                     }
+
+                    colorsCount[color] = colorsCount[color] || 0;
+                    colorsCount[color]++;
 
                     const seriesData: tooltipBuilder.TooltipSeriesDataItem[] = [];
 
@@ -981,6 +986,31 @@ module powerbi.extensibility.visual {
                 }
             }
 
+            // Mark data point as highlighted if its color is different from the major color
+            const majorColor = ((): string => {
+                const colors = Object.keys(colorsCount);
+                
+                let max = -1;
+                let color = null;
+
+                for (let i = 0, len = colors.length; i < len; i++) {
+                    const c = colors[i];
+                    const n = colorsCount[c];
+
+                    if (n > max) {
+                        max = n;
+                        color = c;
+                    }
+                }
+                
+                return color;
+            })();
+
+            for (let i = 0, len = dataPoints.length; i < len; i++) {
+                const item = dataPoints[i];
+                item.highlighted = item.fill !== majorColor;
+            }
+
             return dataPoints;
         }
 
@@ -993,6 +1023,8 @@ module powerbi.extensibility.visual {
             const dataPoints: VisualDataPoint[] = data.dataPoints.filter(d =>
                 (data.xCol != null && d.x == null) || (data.yCol != null && d.y == null) ? false : true
             );
+
+            console.log('renderVisual', data.dataPoints.filter(item => item.selected));
 
             // Select all bar groups in our chart and bind them to our categories.
             // Each group will contain a set of bars, one for each of the values in category.
@@ -1083,6 +1115,21 @@ module powerbi.extensibility.visual {
                 visualUtils.passSavedPointsToLassoUtil(this.data.dataPoints);
                 this.isSelectionRestored = true;
             }
+
+            const allCircles = this.visualSvgGroupMarkers.selectAll('circle');
+            const list = allCircles.filter(item => item.selected);
+
+            allCircles.sort((a, b) => {
+                if (b.highlighted) {
+                    return -1
+                }
+
+                if (a.highlighted) {
+                    return 1
+                }
+
+                return 0
+            });
         }
 
         private bindInteractivityService(

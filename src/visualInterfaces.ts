@@ -157,6 +157,7 @@ module powerbi.extensibility.visual {
         pathDistances?: number[];
         pathElement?: SVGElement;
         isShown?: boolean;
+        highlighted?: boolean;
     }
 
     export interface VisualLabelsCount {
