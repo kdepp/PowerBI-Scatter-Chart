@@ -45,8 +45,11 @@ module powerbi.extensibility.visual {
 
             if (this.options.lassoSelectorUpdate) {
                 this.options.lassoSelectorUpdate(this.options.selection, this.options.pointsTransparencyProperties, this.options.fillPoint, this.options.data, (circles) => {
-                    Visual.skipNextUpdate = true; // we prevent the next update so that the Play Axis doesn't get resetted
-                    this.skipNextRendering = true;
+                    // Should only skip next visual update if it's a selection when play axis is enabled
+                    if (this.visual.playAxis.isEnabled()) {
+                        Visual.skipNextUpdate = true; // we prevent the next update so that the Play Axis doesn't get resetted
+                        this.skipNextRendering = true;
+                    }
                     selectionHandler.handleClearSelection();
                     if (circles.data().length > 0) {
                         selectionHandler.handleSelection(circles.data(), false);
@@ -65,7 +68,6 @@ module powerbi.extensibility.visual {
             const currentSelection = this.options.selection.filter(d => d.selected && d.isShown);
             const selectedDataPoints: VisualDataPoint[] = currentSelection.data();
 
-            Visual.skipNextUpdate = true;
             this.visual.playAxis.onSelect(currentSelection, true);
 
             // Style for legend filter
