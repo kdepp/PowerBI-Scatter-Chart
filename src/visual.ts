@@ -190,6 +190,14 @@ module powerbi.extensibility.visual {
 
         private mainElement: d3.Selection<any>;
 
+        // [taining] Category related
+        // Check data points on each update, and see if there are different fill color for those categories (Student Names in Become case)
+        // If there is, mark this property as `true` and show same effect as if related circle is manually selected with mouse
+        private hasSelectedCategory = false;
+        // [taining] Take the major color at first render, show it instead of the greenish color for those
+        // that are not selected category.
+        private majorCategoryColor: string | null = null;
+
         public static readonly ResizeEndCode: number = 36; // it's wrong in VisualUpdateType enum for some reason
 
         public static skipNextUpdate: boolean = false;
@@ -730,6 +738,8 @@ module powerbi.extensibility.visual {
             let fontSizeInPx: string = PixelConverter.toString(labelSettings.fontSize);
             let labelFontFamily: string = labelSettings.fontFamily;
 
+            const colorsCount: Record<string, number> = {};
+
             for (let categoryIdx: number = 0, ilen: number = categoriesValues.length; categoryIdx < ilen; categoryIdx++) {
                 const categoryValue: any = categoriesValues[categoryIdx];
 
@@ -813,6 +823,12 @@ module powerbi.extensibility.visual {
                         color = colorHelper.getColorForMeasure(
                             category.objects && category.objects[categoryIdx],
                             measureSource);
+                    }
+
+                    // [taining] Only count visible points
+                    if (sizeVal > 0) {
+                        colorsCount[color] = colorsCount[color] || 0;
+                        colorsCount[color]++;
                     }
 
                     const seriesData: tooltipBuilder.TooltipSeriesDataItem[] = [];
@@ -981,6 +997,56 @@ module powerbi.extensibility.visual {
                 }
             }
 
+            // Mark data point as highlighted if its color is different from the major color
+            const majorColor = ((): string => {
+                const colors = Object.keys(colorsCount);
+                
+                let max = -1;
+                let color = null;
+
+                for (let i = 0, len = colors.length; i < len; i++) {
+                    const c = colors[i];
+                    const n = colorsCount[c];
+
+                    if (n > max) {
+                        max = n;
+                        color = c;
+                    }
+                }
+                
+                return color;
+            })();
+
+            // [taining] Set majorCategoryColor to the first major color
+            if (!this.majorCategoryColor) {
+                this.majorCategoryColor = majorColor;
+            }
+
+            let hasHighlighted = false;
+            // [taining] When an element with size == 0 is selected, PowerBI sets all circles into
+            // greenish color, that case should also be taken as hasSelectedCategory
+            let hasMajorColor = false;
+
+            for (let i = 0, len = dataPoints.length; i < len; i++) {
+                const item = dataPoints[i];
+
+                // [taining] Must filter out item.size === 0, those are invisible points which PowerBI
+                // also assigns them the greenish color "#bddf91"
+                item.highlighted = item.size !== 0 && item.fill !== majorColor;
+
+                if (item.highlighted) {
+                    hasHighlighted = true;
+                }
+
+                if (item.fill === this.majorCategoryColor) {
+                    hasMajorColor = true;
+                }
+            }
+
+            // [taining] This property is used to tell if there is category selected,
+            // in Become case, David requires circles to show the same effect as manual selection
+            this.hasSelectedCategory = hasHighlighted || !hasMajorColor;
+
             return dataPoints;
         }
 
@@ -993,6 +1059,8 @@ module powerbi.extensibility.visual {
             const dataPoints: VisualDataPoint[] = data.dataPoints.filter(d =>
                 (data.xCol != null && d.x == null) || (data.yCol != null && d.y == null) ? false : true
             );
+
+            console.log('renderVisual', data.dataPoints.filter(item => item.highlighted));
 
             // Select all bar groups in our chart and bind them to our categories.
             // Each group will contain a set of bars, one for each of the values in category.
@@ -1032,10 +1100,19 @@ module powerbi.extensibility.visual {
                 .attr("r", d => visualUtils.getBubbleRadius(d.radius.value, data.size, data.sizeScale, <number>this.shapesSize.size))
                 .style({
                     "fill-opacity": d => this.fillPoint ? this.getFillOpacity(d) : 0,
-                    "fill": d => d.fill,
+                    "fill": d => {
+                        if (!this.hasSelectedCategory) {
+                            return d.fill;
+                        }
+                        
+                        // [taining] Overwrite the greenish color for unselected elements
+                        // when category is selected, the new color to set is the first major color
+                        // found in `.update()` method
+                        return d.highlighted ? d.fill : this.majorCategoryColor;
+                    },
                     "stroke-opacity": d => {
                         if (this.fillPoint) {
-                            if (d.selected) {
+                            if (d.highlighted || d.selected) {
                                 return 1;
                             } else {
                                 return 0;
@@ -1046,14 +1123,14 @@ module powerbi.extensibility.visual {
                     },
                     "stroke": d => {
                         if (this.fillPoint) {
-                            if (d.selected) {
+                            if (d.highlighted || d.selected) {
                                 return Visual.DefaultStrokeSelectionColor;
                             }
                         }
                         return d.fill;
                     },
                     "stroke-width": d => {
-                        if (d.selected) {
+                        if (d.highlighted || d.selected) {
                             return Visual.DefaultStrokeSelectionWidth;
                         }
 
@@ -1083,6 +1160,20 @@ module powerbi.extensibility.visual {
                 visualUtils.passSavedPointsToLassoUtil(this.data.dataPoints);
                 this.isSelectionRestored = true;
             }
+
+            const allCircles = this.visualSvgGroupMarkers.selectAll('circle');
+
+            allCircles.sort((a, b) => {
+                if (b.highlighted) {
+                    return -1
+                }
+
+                if (a.highlighted) {
+                    return 1
+                }
+
+                return 0
+            });
         }
 
         private bindInteractivityService(
@@ -1111,9 +1202,9 @@ module powerbi.extensibility.visual {
 
         private getFillOpacity(dataPoint: VisualDataPoint): number {
             let pointsTransparencyProperties: DataViewObject = this.pointsTransparencyProperties;
-            if (dataPoint.selected) {
+            if (dataPoint.highlighted || dataPoint.selected) {
                 return (1 - <number>pointsTransparencyProperties.selected / 100);
-            } else if (this.interactivityService.hasSelection()) {
+            } else if (this.hasSelectedCategory || this.interactivityService.hasSelection()) {
                 return 1 - <number>pointsTransparencyProperties.unselected / 100;
             }
 

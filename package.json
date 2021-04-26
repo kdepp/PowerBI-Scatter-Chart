@@ -50,6 +50,8 @@
   "scripts": {
     "postinstall": "pbiviz update 2.1.0",
     "start": "pbiviz start",
+    "version": "pbiviz --version",
+    "cert": "pbiviz --create-cert",
     "package": "pbiviz package",
     "lint": "tslint -r \"node_modules/tslint-microsoft-contrib\"  \"+(src|test)/**/*.ts\""
   }
