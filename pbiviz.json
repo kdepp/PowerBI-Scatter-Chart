@@ -4,7 +4,7 @@
     "displayName": "Scatter Chart by Become",
     "guid": "scatterChartByBecome6CFB0DAB29E746BE850B6DFD1E2789FD",
     "visualClassName": "Visual",
-    "version": "1.3.1",
+    "version": "1.3.2",
     "description": "Scatter Chart with rectangle selection support",
     "gitHubUrl": "https://github.com/kdepp/PowerBI-Scatter-Chart"
   },
