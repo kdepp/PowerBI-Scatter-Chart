@@ -75,7 +75,7 @@ module powerbi.extensibility.visual {
                 "fill-opacity": d => this.options.fillPoint ? this.options.getFillOpacity(d) : 0,
                 "stroke-opacity": d => {
                     if (this.options.fillPoint) {
-                        if (d.selected) {
+                        if (d.highlighted || d.selected) {
                             return 1;
                         } else {
                             return 0;
@@ -86,7 +86,7 @@ module powerbi.extensibility.visual {
                 },
                 "stroke": d => {
                     if (this.options.fillPoint) {
-                        if (d.selected) {
+                        if (d.highlighted || d.selected) {
                             return Visual.DefaultStrokeSelectionColor;
                         }
                     }
@@ -94,7 +94,7 @@ module powerbi.extensibility.visual {
                     return d.fill;
                 },
                 "stroke-width": d => {
-                    if (d.selected) {
+                    if (d.highlighted || d.selected) {
                         return Visual.DefaultStrokeSelectionWidth;
                     }
 
